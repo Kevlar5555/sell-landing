@@ -1,0 +1,106 @@
+@import "tailwindcss";
+
+:root {
+  --bg-deep: #0a0705;
+  --bg-mid: #16100c;
+  --amber: #d4a24a;
+  --amber-bright: #e8bc6a;
+  --amber-glow: #c47a28;
+  --cream: #f3ebe0;
+  --muted: #a89888;
+  --ink: #f7f1e8;
+  --line: rgba(243, 235, 224, 0.14);
+  --danger: #c45c4a;
+  --font-display: var(--font-fraunces), "Times New Roman", serif;
+  --font-body: var(--font-manrope), "Helvetica Neue", sans-serif;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body {
+  margin: 0;
+  min-height: 100%;
+}
+
+body {
+  color: var(--ink);
+  font-family: var(--font-body);
+  background: var(--bg-deep);
+  -webkit-font-smoothing: antialiased;
+}
+
+button,
+input {
+  font: inherit;
+}
+
+@keyframes fade-up {
+  from {
+    opacity: 0;
+    transform: translateY(18px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes glow-breathe {
+  0%,
+  100% {
+    transform: scale(1);
+    opacity: 0.92;
+  }
+  50% {
+    transform: scale(1.04);
+    opacity: 1;
+  }
+}
+
+@keyframes soft-pulse {
+  0%,
+  100% {
+    opacity: 0.45;
+  }
+  50% {
+    opacity: 0.85;
+  }
+}
+
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+.anim-fade-up {
+  animation: fade-up 0.9s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+.anim-fade-up-delay {
+  animation: fade-up 1s cubic-bezier(0.22, 1, 0.36, 1) 0.15s both;
+}
+
+.anim-fade-up-delay-2 {
+  animation: fade-up 1s cubic-bezier(0.22, 1, 0.36, 1) 0.28s both;
+}
+
+.glow-orb {
+  animation: glow-breathe 7s ease-in-out infinite;
+}
+
+.soft-pulse {
+  animation: soft-pulse 2.2s ease-in-out infinite;
+}
+
+.spinner {
+  width: 1.25rem;
+  height: 1.25rem;
+  border: 2px solid rgba(243, 235, 224, 0.2);
+  border-top-color: var(--amber-bright);
+  border-radius: 50%;
+  animation: spin 0.8s linear infinite;
+}
