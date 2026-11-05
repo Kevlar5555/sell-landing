@@ -9,6 +9,7 @@ type PaymentResponse = {
   orderId: string;
   amountPln: number;
   status: "pending" | "paid" | "failed";
+  accessToken?: string;
   error?: string;
 };
 
@@ -21,14 +22,17 @@ export function BlikCheckout() {
   const [error, setError] = useState<string | null>(null);
   const [orderId, setOrderId] = useState<string | null>(null);
   const [paymentId, setPaymentId] = useState<string | null>(null);
+  const [accessToken, setAccessToken] = useState<string | null>(null);
 
   useEffect(() => {
-    if (phase !== "pending" || !paymentId) return;
+    if (phase !== "pending" || !paymentId || !accessToken) return;
 
     let cancelled = false;
     const poll = async () => {
       try {
-        const res = await fetch(`/api/payments/${paymentId}`);
+        const res = await fetch(`/api/payments/${paymentId}`, {
+          headers: { "x-payment-token": accessToken },
+        });
         const data = (await res.json()) as PaymentResponse & { error?: string };
         if (cancelled) return;
         if (!res.ok) {
@@ -52,13 +56,13 @@ export function BlikCheckout() {
       }
     };
 
-    const interval = window.setInterval(poll, 1500);
+    const interval = window.setInterval(poll, 3000);
     void poll();
     return () => {
       cancelled = true;
       window.clearInterval(interval);
     };
-  }, [phase, paymentId]);
+  }, [phase, paymentId, accessToken]);
 
   async function onSubmit(event: FormEvent) {
     event.preventDefault();
@@ -90,6 +94,11 @@ export function BlikCheckout() {
       }
       setPaymentId(data.id);
       setOrderId(data.orderId);
+      setAccessToken(data.accessToken ?? null);
+      if (!data.accessToken) {
+        setError("Brak tokenu płatności z serwera.");
+        setPhase("error");
+      }
     } catch {
       setError("Błąd połączenia. Spróbuj ponownie.");
       setPhase("form");
@@ -102,6 +111,7 @@ export function BlikCheckout() {
     setError(null);
     setOrderId(null);
     setPaymentId(null);
+    setAccessToken(null);
   }
 
   if (phase === "idle") {
@@ -230,6 +240,7 @@ export function BlikCheckout() {
             setCode("");
             setError(null);
             setPaymentId(null);
+            setAccessToken(null);
           }}
           style={{
             marginTop: "1.25rem",

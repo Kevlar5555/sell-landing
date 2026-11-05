@@ -1,3 +1,4 @@
+import { randomBytes } from "crypto";
 import {
   createCashbillBlikPayment,
   formatAmountPln,
@@ -11,8 +12,20 @@ import type {
   CreateBlikPaymentInput,
 } from "./types";
 
+const MIN_REMOTE_REFRESH_MS = 5_000;
+
 function makeOrderId(): string {
   return `ORD-${Date.now().toString(36).toUpperCase()}`;
+}
+
+function makeAccessToken(): string {
+  return randomBytes(24).toString("hex");
+}
+
+function assertAccess(payment: BlikPayment, accessToken: string): void {
+  if (!accessToken || payment.accessToken !== accessToken) {
+    throw new Error("Brak uprawnień do tej płatności.");
+  }
 }
 
 export class CashbillBlikProvider implements BlikPaymentProvider {
@@ -56,13 +69,20 @@ export class CashbillBlikProvider implements BlikPaymentProvider {
       createdAt: Date.now(),
       provider: "cashbill",
       cashbillStatus: "Start",
+      accessToken: makeAccessToken(),
+      lastRemoteRefreshAt: Date.now(),
     };
     savePayment(payment);
     return payment;
   }
 
-  async confirmPayment(id: string): Promise<BlikPayment> {
-    const refreshed = await this.refreshPayment(id);
+  async confirmPayment(id: string, accessToken: string): Promise<BlikPayment> {
+    const existing = await this.getPayment(id);
+    if (!existing) {
+      throw new Error("Nie znaleziono płatności.");
+    }
+    assertAccess(existing, accessToken);
+    const refreshed = await this.refreshPayment(id, { force: true });
     if (!refreshed) {
       throw new Error("Nie znaleziono płatności.");
     }
@@ -73,30 +93,52 @@ export class CashbillBlikProvider implements BlikPaymentProvider {
     return getPaymentStore().get(id) ?? null;
   }
 
-  async refreshPayment(id: string): Promise<BlikPayment | null> {
+  async refreshPayment(
+    id: string,
+    opts?: { force?: boolean },
+  ): Promise<BlikPayment | null> {
     const existing = getPaymentStore().get(id);
+    const now = Date.now();
+
+    if (
+      existing &&
+      !opts?.force &&
+      existing.lastRemoteRefreshAt &&
+      now - existing.lastRemoteRefreshAt < MIN_REMOTE_REFRESH_MS
+    ) {
+      return existing;
+    }
+
+    // Do not call CashBill for unknown ids (prevents id probing / API abuse).
+    if (!existing) {
+      return null;
+    }
+
     try {
       const remote = await getCashbillPayment(id);
       const status = mapCashbillStatus(remote.status);
       const payment: BlikPayment = {
         id: remote.id,
-        orderId: existing?.orderId || remote.additionalData || remote.id,
+        orderId: existing.orderId || remote.additionalData || remote.id,
         amountPln:
-          existing?.amountPln ??
-          (Number.parseFloat(remote.amount?.value || "0") || 0),
+          existing.amountPln ||
+          Number.parseFloat(remote.amount?.value || "0") ||
+          0,
         status,
-        createdAt: existing?.createdAt ?? Date.now(),
+        createdAt: existing.createdAt,
         paidAt:
-          status === "paid"
-            ? existing?.paidAt ?? Date.now()
-            : existing?.paidAt,
+          status === "paid" ? existing.paidAt ?? Date.now() : existing.paidAt,
         provider: "cashbill",
         cashbillStatus: remote.status,
+        accessToken: existing.accessToken,
+        lastRemoteRefreshAt: now,
+        declineReason: existing.declineReason,
       };
       savePayment(payment);
       return payment;
     } catch {
-      return existing ?? null;
+      savePayment({ ...existing, lastRemoteRefreshAt: now });
+      return existing;
     }
   }
 }

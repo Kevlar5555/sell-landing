@@ -10,6 +10,9 @@ export type BlikPayment = {
   provider: "cashbill";
   cashbillStatus?: string;
   declineReason?: string;
+  /** Opaque token required to poll/confirm this payment. */
+  accessToken: string;
+  lastRemoteRefreshAt?: number;
 };
 
 export type CreateBlikPaymentInput = {
@@ -23,7 +26,10 @@ export type CreateBlikPaymentInput = {
 
 export interface BlikPaymentProvider {
   createBlikPayment(input: CreateBlikPaymentInput): Promise<BlikPayment>;
-  confirmPayment(id: string): Promise<BlikPayment>;
+  confirmPayment(id: string, accessToken: string): Promise<BlikPayment>;
   getPayment(id: string): Promise<BlikPayment | null>;
-  refreshPayment(id: string): Promise<BlikPayment | null>;
+  refreshPayment(
+    id: string,
+    opts?: { force?: boolean },
+  ): Promise<BlikPayment | null>;
 }

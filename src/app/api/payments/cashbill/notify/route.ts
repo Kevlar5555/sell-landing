@@ -14,16 +14,29 @@ async function handleNotify(request: Request) {
   const args = url.searchParams.get("args") || "";
   const sign = url.searchParams.get("sign") || "";
 
-  try {
-    const { secretKey } = getCashbillConfig();
-    if (!verifyNotificationSign(cmd, args, sign, secretKey)) {
-      return new NextResponse("Invalid signature", { status: 401 });
-    }
+  if (!cmd || !args || !sign) {
+    return new NextResponse("Missing parameters", { status: 400 });
+  }
 
+  let secretKey: string;
+  try {
+    secretKey = getCashbillConfig().secretKey;
+  } catch {
+    return new NextResponse("CashBill not configured", { status: 503 });
+  }
+
+  if (!verifyNotificationSign(cmd, args, sign, secretKey)) {
+    return new NextResponse("Invalid signature", { status: 401 });
+  }
+
+  try {
     if (cmd === "transactionStatusChanged") {
       const paymentId = args.split(",")[0]?.trim();
       if (paymentId) {
-        await blikProvider.refreshPayment(paymentId);
+        const known = await blikProvider.getPayment(paymentId);
+        if (known) {
+          await blikProvider.refreshPayment(paymentId, { force: true });
+        }
       }
     }
 
@@ -31,20 +44,22 @@ async function handleNotify(request: Request) {
       const [paymentId, reason] = args.split(",").map((part) => part.trim());
       if (paymentId) {
         const existing = getPaymentStore().get(paymentId);
-        const refreshed = await blikProvider.refreshPayment(paymentId);
-        const base = refreshed ?? existing;
-        if (base) {
+        if (existing) {
+          const refreshed =
+            (await blikProvider.refreshPayment(paymentId, { force: true })) ??
+            existing;
           savePayment({
-            ...base,
+            ...refreshed,
             status: "failed",
-            declineReason: reason || base.declineReason,
-            cashbillStatus: base.cashbillStatus || "NegativeFinish",
+            declineReason: reason || refreshed.declineReason,
+            cashbillStatus: refreshed.cashbillStatus || "NegativeFinish",
           });
         }
       }
     }
   } catch {
-    // Still acknowledge when secrets are missing locally so CashBill does not hammer.
+    // Valid signature but processing failed — ask CashBill to retry.
+    return new NextResponse("Processing error", { status: 500 });
   }
 
   return new NextResponse("OK", {
