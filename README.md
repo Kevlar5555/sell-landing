@@ -1,6 +1,6 @@
-# KNOT — landing + demo BLIK
+# KNOT — landing + CashBill BLIK
 
-Polska strona sprzedażowa świecy **„Bursztyn”** (79 zł) z demonstracyjnym flow płatności BLIK.
+Polska strona sprzedażowa świecy **„Bursztyn”** (79 zł) z płatnością **BLIK Level 0 przez CashBill**.
 
 ## Uruchomienie
 
@@ -11,13 +11,22 @@ npm run dev
 
 Otwórz [http://127.0.0.1:3000](http://127.0.0.1:3000).
 
-## Demo BLIK
+## CashBill
 
-1. Kliknij **Zapłać BLIKIEM · 79 zł**
-2. Wpisz dowolny 6-cyfrowy kod
-3. Status przechodzi `pending` → `paid` (~2 s)
+Wymagane zmienne środowiskowe (sekrety aplikacji):
 
-Adapter: `createBlikPayment` / `confirmPayment` w `src/lib/payments/demo-provider.ts`  
-API: `POST /api/payments/blik`, `GET|POST /api/payments/[id]`
+- `CASHBILL_SHOP_ID` — ID punktu płatności
+- `CASHBILL_SECRET_KEY` — sekret punktu
+- `CASHBILL_ENV` — `prod` (domyślnie) albo `test`
+- `CASHBILL_RETURN_BASE` — publiczny URL powrotu (np. `https://knot-bursztyn.apps.grok.bot`)
 
-To jest **DEMO** — bez prawdziwych środków. Integracja CashBill / Przelewy24 / PayU później przez ten sam interfejs providera.
+W panelu CashBill ustaw notification URL na:
+
+`{CASHBILL_RETURN_BASE}/api/payments/cashbill/notify`
+
+## Flow
+
+1. E-mail + 6-cyfrowy kod BLIK
+2. `POST /api/payments/blik` → CashBill BLIK Level 0 (`createBlikPayment`)
+3. Poll `GET /api/payments/[id]` + webhook `transactionStatusChanged`
+4. Status `PositiveFinish` → UI „Opłacone”

@@ -2,7 +2,7 @@
 
 import { FormEvent, useEffect, useState } from "react";
 
-type Phase = "idle" | "form" | "pending" | "paid" | "error";
+type Phase = "idle" | "form" | "pending" | "paid" | "failed" | "error";
 
 type PaymentResponse = {
   id: string;
@@ -17,6 +17,7 @@ const PRICE = 79;
 export function BlikCheckout() {
   const [phase, setPhase] = useState<Phase>("idle");
   const [code, setCode] = useState("");
+  const [email, setEmail] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [orderId, setOrderId] = useState<string | null>(null);
   const [paymentId, setPaymentId] = useState<string | null>(null);
@@ -39,6 +40,10 @@ export function BlikCheckout() {
           setPhase("paid");
           return;
         }
+        if (data.status === "failed") {
+          setError("Płatność została odrzucona. Spróbuj ponownie z nowym kodem BLIK.");
+          setPhase("failed");
+        }
       } catch {
         if (!cancelled) {
           setError("Błąd połączenia podczas sprawdzania płatności.");
@@ -47,7 +52,7 @@ export function BlikCheckout() {
       }
     };
 
-    const interval = window.setInterval(poll, 600);
+    const interval = window.setInterval(poll, 1500);
     void poll();
     return () => {
       cancelled = true;
@@ -64,6 +69,10 @@ export function BlikCheckout() {
       setError("Kod BLIK musi mieć dokładnie 6 cyfr.");
       return;
     }
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim())) {
+      setError("Podaj poprawny adres e-mail.");
+      return;
+    }
 
     setPhase("pending");
 
@@ -71,7 +80,7 @@ export function BlikCheckout() {
       const res = await fetch("/api/payments/blik", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ code: normalized }),
+        body: JSON.stringify({ code: normalized, email: email.trim() }),
       });
       const data = (await res.json()) as PaymentResponse & { error?: string };
       if (!res.ok) {
@@ -132,7 +141,7 @@ export function BlikCheckout() {
             textTransform: "uppercase",
           }}
         >
-          DEMO — bez prawdziwych środków
+          Płatność przez CashBill
         </p>
       </div>
     );
@@ -161,18 +170,6 @@ export function BlikCheckout() {
             </>
           ) : null}
         </p>
-        <p
-          className="soft-pulse"
-          style={{
-            marginTop: "1rem",
-            color: "var(--amber-bright)",
-            fontSize: "0.72rem",
-            letterSpacing: "0.1em",
-            textTransform: "uppercase",
-          }}
-        >
-          Tryb DEMO
-        </p>
       </div>
     );
   }
@@ -198,17 +195,6 @@ export function BlikCheckout() {
             Numer zamówienia: {orderId}
           </p>
         ) : null}
-        <p
-          style={{
-            marginTop: "1rem",
-            color: "var(--muted)",
-            fontSize: "0.72rem",
-            letterSpacing: "0.1em",
-            textTransform: "uppercase",
-          }}
-        >
-          Tryb DEMO — to nie była prawdziwa płatność
-        </p>
         <button
           type="button"
           onClick={reset}
@@ -228,12 +214,76 @@ export function BlikCheckout() {
     );
   }
 
+  if (phase === "failed" || phase === "error") {
+    return (
+      <div className="anim-fade-up" style={{ marginTop: "2rem", maxWidth: 380 }}>
+        <p style={{ margin: 0, color: "var(--danger)", fontWeight: 600 }}>
+          Płatność nieudana
+        </p>
+        <p style={{ margin: "0.6rem 0 0", color: "var(--muted)", fontSize: "0.95rem" }}>
+          {error}
+        </p>
+        <button
+          type="button"
+          onClick={() => {
+            setPhase("form");
+            setCode("");
+            setError(null);
+            setPaymentId(null);
+          }}
+          style={{
+            marginTop: "1.25rem",
+            background: "linear-gradient(135deg, #e8bc6a 0%, #c47a28 100%)",
+            color: "#1a1008",
+            border: "none",
+            padding: "0.75rem 1.2rem",
+            fontWeight: 700,
+            cursor: "pointer",
+          }}
+        >
+          Spróbuj ponownie
+        </button>
+      </div>
+    );
+  }
+
   return (
     <form
       onSubmit={onSubmit}
       className="anim-fade-up"
       style={{ marginTop: "2rem", maxWidth: 360 }}
     >
+      <label
+        htmlFor="buyer-email"
+        style={{
+          display: "block",
+          fontSize: "0.78rem",
+          letterSpacing: "0.14em",
+          textTransform: "uppercase",
+          color: "var(--muted)",
+          marginBottom: "0.55rem",
+        }}
+      >
+        E-mail
+      </label>
+      <input
+        id="buyer-email"
+        type="email"
+        autoComplete="email"
+        value={email}
+        onChange={(e) => setEmail(e.target.value)}
+        placeholder="jan@example.com"
+        style={{
+          width: "100%",
+          background: "rgba(255,255,255,0.04)",
+          border: "1px solid var(--line)",
+          color: "var(--ink)",
+          padding: "0.85rem 1rem",
+          fontSize: "1rem",
+          outline: "none",
+          marginBottom: "1rem",
+        }}
+      />
       <label
         htmlFor="blik-code"
         style={{
@@ -266,7 +316,7 @@ export function BlikCheckout() {
           outline: "none",
         }}
       />
-      {(error || phase === "error") && (
+      {error && (
         <p style={{ color: "var(--danger)", margin: "0.65rem 0 0", fontSize: "0.9rem" }}>
           {error}
         </p>
@@ -310,7 +360,7 @@ export function BlikCheckout() {
           lineHeight: 1.5,
         }}
       >
-        DEMO — prawdziwe pieniądze wymagają kluczy CashBill / Przelewy24 / PayU
+        CashBill · BLIK Level 0 · potwierdź w aplikacji banku
       </p>
     </form>
   );

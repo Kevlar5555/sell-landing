@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { blikProvider } from "@/lib/payments/demo-provider";
+import { blikProvider } from "@/lib/payments/cashbill-provider";
 
 export const runtime = "nodejs";
 
@@ -7,7 +7,8 @@ type Params = { params: Promise<{ id: string }> };
 
 export async function GET(_request: Request, { params }: Params) {
   const { id } = await params;
-  const payment = await blikProvider.getPayment(id);
+  const payment =
+    (await blikProvider.refreshPayment(id)) ?? (await blikProvider.getPayment(id));
 
   if (!payment) {
     return NextResponse.json(
@@ -22,7 +23,8 @@ export async function GET(_request: Request, { params }: Params) {
     amountPln: payment.amountPln,
     status: payment.status,
     paidAt: payment.paidAt ?? null,
-    demo: true,
+    cashbillStatus: payment.cashbillStatus ?? null,
+    provider: "cashbill",
   });
 }
 
@@ -37,7 +39,8 @@ export async function POST(_request: Request, { params }: Params) {
       amountPln: payment.amountPln,
       status: payment.status,
       paidAt: payment.paidAt ?? null,
-      demo: true,
+      cashbillStatus: payment.cashbillStatus ?? null,
+      provider: "cashbill",
     });
   } catch (error) {
     const message =

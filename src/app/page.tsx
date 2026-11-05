@@ -83,7 +83,7 @@ export default function HomePage() {
             color: "var(--muted)",
           }}
         >
-          Płatność DEMO
+          CashBill · BLIK
         </span>
       </header>
 

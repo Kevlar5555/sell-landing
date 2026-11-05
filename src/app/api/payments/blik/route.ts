@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
-import { blikProvider } from "@/lib/payments/demo-provider";
+import { blikProvider } from "@/lib/payments/cashbill-provider";
+import { getCustomerIp, getReturnBaseUrl } from "@/lib/payments/request-meta";
 
 export const runtime = "nodejs";
 
@@ -10,8 +11,9 @@ const PRODUCT = {
 
 export async function POST(request: Request) {
   try {
-    const body = (await request.json()) as { code?: string };
+    const body = (await request.json()) as { code?: string; email?: string };
     const code = typeof body.code === "string" ? body.code.trim() : "";
+    const email = typeof body.email === "string" ? body.email.trim() : "";
 
     if (!/^\d{6}$/.test(code)) {
       return NextResponse.json(
@@ -22,8 +24,11 @@ export async function POST(request: Request) {
 
     const payment = await blikProvider.createBlikPayment({
       code,
+      email,
       amountPln: PRODUCT.amountPln,
       productName: PRODUCT.name,
+      customerIp: await getCustomerIp(),
+      returnBaseUrl: await getReturnBaseUrl(request),
     });
 
     return NextResponse.json({
@@ -31,7 +36,7 @@ export async function POST(request: Request) {
       orderId: payment.orderId,
       amountPln: payment.amountPln,
       status: payment.status,
-      demo: true,
+      provider: "cashbill",
     });
   } catch (error) {
     const message =
